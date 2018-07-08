@@ -46,10 +46,19 @@ func (this *DeviceController) Add() {
 		return
 	}
 
+	block, err := models.GetBlockByID(req.BlockID)
+	if err != nil {
+		log.Error(err)
+		outputBadReq(this.Ctx.Output, err)
+		return
+	}
+
 	newDev := models.Device{}
 	newDev.DevName = req.DevName
 	newDev.BlockID = req.BlockID
 	newDev.DevTypeID = req.DevTypeID
+	newDev.SetRmtDevID(req.RmtDevID)
+	newDev.BlockName = block.BlockName
 
 	id, err := models.InsertDev(&newDev)
 	if err != nil {
@@ -79,15 +88,16 @@ func (this *DeviceController) Delete() {
 		outputBadReq(this.Ctx.Output, err)
 		return
 	}
-	devid, err := strconv.ParseUint(this.Ctx.Input.Param("devid"), 0, 64)
+	devid, err := strconv.ParseUint(this.Ctx.Input.Param(":devid"), 0, 64)
 	if err != nil {
 		log.Error(err)
 		outputInternalError(this.Ctx.Output, err)
 		return
 	}
 
-	err = models.DelDevType(int64(devid))
+	err = models.DelDev(int64(devid))
 	if err != nil {
+		log.Error("devid", devid)
 		log.Error(err)
 		if err == models.ErrNotFound {
 			outputNotFound(this.Ctx.Output, err)
@@ -132,9 +142,9 @@ func (this *DeviceController) TurnOnOff() {
 		}
 	}
 	time.Sleep(time.Duration(len(req.Devs)*1) * time.Second)
-	for _, dev := range req.Devs {
-		models.DevSetStatus(dev.DevID, dev.Status)
-	}
+	//	for _, dev := range req.Devs {
+	//		models.DevSetStatus(dev.DevID, dev.Status)
+	//	}
 	for i, dev := range req.Devs {
 		d, _ := models.GetDevByID(dev.DevID)
 		req.Devs[i] = d

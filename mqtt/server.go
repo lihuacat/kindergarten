@@ -15,7 +15,7 @@ func StartMqttServer() error {
 		TimeoutRetries: 2,
 	}
 
-	err := server.ListenAndServe("tcp://:1883")
+	err := server.ListenAndServe("tcp://:444")
 	if err != nil {
 		log.Error(err)
 

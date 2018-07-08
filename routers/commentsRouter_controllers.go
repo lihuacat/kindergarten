@@ -143,6 +143,14 @@ func init() {
 			MethodParams: param.Make(),
 			Params: nil})
 
+	beego.GlobalControllerRouter["kindergarten/controllers:RmtSuiteController"] = append(beego.GlobalControllerRouter["kindergarten/controllers:RmtSuiteController"],
+		beego.ControllerComments{
+			Method: "Get",
+			Router: `/:rmtctrlid`,
+			AllowHTTPMethods: []string{"get"},
+			MethodParams: param.Make(),
+			Params: nil})
+
 	beego.GlobalControllerRouter["kindergarten/controllers:SessionController"] = append(beego.GlobalControllerRouter["kindergarten/controllers:SessionController"],
 		beego.ControllerComments{
 			Method: "Post",

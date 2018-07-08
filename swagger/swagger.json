@@ -795,6 +795,38 @@
                 }
             }
         },
+        "/rmtsuite/{rmtctrlid}": {
+            "get": {
+                "tags": [
+                    "rmtsuite"
+                ],
+                "description": "查询遥控器套件",
+                "operationId": "RmtSuiteController.查询遥控器套件",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "rmtctrlid",
+                        "description": "遥控器ID",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/models.RmtSuite"
+                        }
+                    },
+                    "400": {
+                        "description": "参数为空"
+                    },
+                    "500": {
+                        "description": "内部错误"
+                    }
+                }
+            }
+        },
         "/session/": {
             "post": {
                 "tags": [
@@ -1074,6 +1106,9 @@
                 "KgID": {
                     "type": "integer",
                     "format": "int64"
+                },
+                "RmtCtrlID": {
+                    "type": "string"
                 }
             }
         },
@@ -1117,6 +1152,9 @@
                 "KgID": {
                     "type": "integer",
                     "format": "int64"
+                },
+                "RmtCtrlID": {
+                    "type": "string"
                 }
             }
         },
@@ -1134,6 +1172,9 @@
                 "DevTypeID": {
                     "type": "integer",
                     "format": "int64"
+                },
+                "RmtDevID": {
+                    "type": "string"
                 }
             }
         },
@@ -1174,6 +1215,20 @@
                 }
             }
         },
+        "models.DevStatus": {
+            "title": "DevStatus",
+            "type": "object",
+            "properties": {
+                "Port": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "Status": {
+                    "type": "integer",
+                    "format": "int64"
+                }
+            }
+        },
         "models.DevType": {
             "title": "DevType",
             "type": "object",
@@ -1184,6 +1239,10 @@
                 },
                 "DevTypeName": {
                     "type": "string"
+                },
+                "PortNum": {
+                    "type": "integer",
+                    "format": "int64"
                 }
             }
         },
@@ -1223,6 +1282,10 @@
                 "BlockName": {
                     "type": "string"
                 },
+                "CtrlNum": {
+                    "type": "integer",
+                    "format": "int64"
+                },
                 "DevID": {
                     "type": "integer",
                     "format": "int64"
@@ -1235,8 +1298,20 @@
                     "format": "int64"
                 },
                 "Status": {
-                    "type": "integer",
-                    "format": "int64"
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.DevStatus"
+                    }
+                },
+                "lastTime": {
+                    "type": "string",
+                    "format": "string"
+                },
+                "rmtCtrlID": {
+                    "type": "string"
+                },
+                "rmtDevID": {
+                    "type": "string"
                 }
             }
         },
@@ -1404,6 +1479,21 @@
                     "format": "int64"
                 },
                 "UserName": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.RmtSuite": {
+            "title": "RmtSuite",
+            "type": "object",
+            "properties": {
+                "AmmeterID": {
+                    "type": "string"
+                },
+                "LightSwitchID": {
+                    "type": "string"
+                },
+                "RmtCtrlID": {
                     "type": "string"
                 }
             }

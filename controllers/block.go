@@ -58,6 +58,7 @@ func (this *BlockController) Add() {
 	newBlock := models.Block{}
 	newBlock.BlockName = req.BlockName
 	newBlock.KgID = req.KgID
+	newBlock.RmtCtrlID = req.RmtCtrlID
 	id, err := models.InsertBlock(&newBlock)
 	if err != nil {
 		log.Error(err)
@@ -85,7 +86,7 @@ func (this *BlockController) Delete() {
 		outputBadReq(this.Ctx.Output, err)
 		return
 	}
-	blockid, err := strconv.ParseUint(this.Ctx.Input.Param("blockid"), 0, 64)
+	blockid, err := strconv.ParseUint(this.Ctx.Input.Param(":blockid"), 0, 64)
 	if err != nil {
 		log.Error(err)
 		outputBadReq(this.Ctx.Output, err)

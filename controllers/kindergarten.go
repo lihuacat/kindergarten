@@ -289,7 +289,7 @@ func (this *KgController) Delete() {
 		return
 	}
 
-	kgid, err := strconv.ParseUint(this.Ctx.Input.Param("kgid"), 0, 64)
+	kgid, err := strconv.ParseUint(this.Ctx.Input.Param(":kgid"), 0, 64)
 	if err != nil {
 		log.Error(err)
 		outputBadReq(this.Ctx.Output, err)

@@ -44,7 +44,7 @@ func StartClient() error {
 	//	msg.SetWillMessage([]byte("send me home"))
 	msg.SetUsername([]byte("surgemq"))
 	msg.SetPassword([]byte("verysecret"))
-	err := client.Connect("tcp://47.94.4.51:1883", msg)
+	err := client.Connect("tcp://47.94.4.51:444", msg)
 	if err != nil {
 		log.Error(err)
 		return err
@@ -122,6 +122,11 @@ func onPublish(msg *message.PublishMessage) error {
 			log.Error(err)
 			return nil
 		}
+		dev, err := models.GetDevByRmtID(ltStatus.SwitchID)
+		if err != nil {
+			log.Error(err)
+			return nil
+		}
 		//	fmt.Sprintf("rmid:%s/switchid:%s/sw1", ltStatus.RoomID, ltStatus.SwitchID)
 		status, err := strconv.Atoi(ltStatus.LtStatus.Sw1)
 		if err != nil {
@@ -132,7 +137,7 @@ func onPublish(msg *message.PublishMessage) error {
 			if status == 0 {
 				status = -1
 			}
-			models.SetDevStatusbyRmtPath(fmt.Sprintf("%s/%s/sw1", ltStatus.RoomID, ltStatus.SwitchID), status)
+			models.SetDevStatusbyDevIDPort(dev.DevID, 1, status)
 		}
 		status, err = strconv.Atoi(ltStatus.LtStatus.Sw2)
 		if err != nil {
@@ -143,7 +148,7 @@ func onPublish(msg *message.PublishMessage) error {
 			if status == 0 {
 				status = -1
 			}
-			models.SetDevStatusbyRmtPath(fmt.Sprintf("%s/%s/sw2", ltStatus.RoomID, ltStatus.SwitchID), status)
+			models.SetDevStatusbyDevIDPort(dev.DevID, 2, status)
 		}
 		status, err = strconv.Atoi(ltStatus.LtStatus.Sw3)
 		if err != nil {
@@ -154,11 +159,49 @@ func onPublish(msg *message.PublishMessage) error {
 			if status == 0 {
 				status = -1
 			}
-			models.SetDevStatusbyRmtPath(fmt.Sprintf("%s/%s/sw3", ltStatus.RoomID, ltStatus.SwitchID), status)
+			models.SetDevStatusbyDevIDPort(dev.DevID, 3, status)
+		}
+
+		block, err := models.GetBlockByRmtCtrlID(ltStatus.RoomID)
+		if err != nil {
+			log.Error("kaCmd.RmtCtrlID", ltStatus.RoomID)
+			log.Error(err)
+			return nil
+		}
+		err = models.DevUpdateLastTimeByBlkID(block.BlockID)
+		if err != nil {
+			log.Error(err)
+			return nil
+		}
+
+	} else if strings.Contains(string(msg.Payload()), `"cmd":"keepalive"`) {
+		kaCmd := KeepAliveCmd{}
+		//		log.Debug("msg.Payload()", msg.Payload())
+		err = json.Unmarshal(msg.Payload(), &kaCmd)
+		if err != nil {
+			log.Error(err)
+			return nil
+		}
+		block, err := models.GetBlockByRmtCtrlID(kaCmd.RmtCtrlID)
+		if err != nil {
+			log.Error("kaCmd.RmtCtrlID", kaCmd.RmtCtrlID)
+			log.Error(err)
+			return nil
+		}
+		err = models.DevUpdateLastTimeByBlkID(block.BlockID)
+		if err != nil {
+			log.Error(err)
+			return nil
 		}
 	} else { //空调
+
 		acStatus := AirconditionStatus{}
 		err = json.Unmarshal(msg.Payload(), &acStatus)
+		if err != nil {
+			log.Error(err)
+			return nil
+		}
+		dev, err := models.GetDevByRmtID(acStatus.AmmeterID)
 		if err != nil {
 			log.Error(err)
 			return nil
@@ -171,7 +214,23 @@ func onPublish(msg *message.PublishMessage) error {
 		if status == 0 {
 			status = -1
 		}
-		models.SetDevStatusbyRmtPath(fmt.Sprintf("%s", acStatus.RmID), status)
+		err = models.SetDevStatusbyDevIDPort(dev.DevID, 1, status)
+		if err != nil {
+			log.Error(err)
+			return nil
+		}
+
+		block, err := models.GetBlockByRmtCtrlID(acStatus.RmID)
+		if err != nil {
+			log.Error("kaCmd.RmtCtrlID", acStatus.RmID)
+			log.Error(err)
+			return nil
+		}
+		err = models.DevUpdateLastTimeByBlkID(block.BlockID)
+		if err != nil {
+			log.Error(err)
+			return nil
+		}
 	}
 	return nil
 }
@@ -199,13 +258,13 @@ type LigthStatus struct {
 }
 
 type LigthCmd struct {
-	RoomID   string      `json:"rmid"`
-	SwitchID string      `json:"switchid"`
-	LtCmd    interface{} `json:"ltcmd"`
+	RmtCtrlID string      `json:"rmid"`
+	SwitchID  string      `json:"switchid"`
+	LtCmd     interface{} `json:"ltcmd"`
 }
 
 type AirconditionStatus struct {
-	RmID      string `json"rmid"`
+	RmID      string `json:"rmid"`
 	AmmeterID string `json:"Ammeterid"`
 	AcStatus  string `json:"acstate"`
 }
@@ -219,76 +278,97 @@ type AirconditionProperty struct {
 }
 
 type AirconditionCmd struct {
-	RmID string      `json"rmid"`
-	Cmd  interface{} `json:"rmcmd"`
+	RmtCtrlID string      `json:"rmid"`
+	Cmd       interface{} `json:"rmcmd"`
 }
 
-func ControlDevice(id int64, status int) error {
+type KeepAliveCmd struct {
+	RmtCtrlID string `json:"rmid"`
+	Cmd       string `json:"cmd"`
+}
+
+func ControlDevice(id int64, statuses []*models.DevStatus) error {
 	var (
 		topic   []byte
 		payload []byte
 	)
-	if status == -1 {
-		status = 0
-	}
-	devRmtPath, err := models.GetDevPathbyID(id)
+	//	if status == -1 {
+	//		status = 0
+	//	}
+	dev, err := models.GetDevByID(id)
 	if err != nil {
 		log.Error(err)
 		return err
 	}
-	if strings.Contains(devRmtPath, "sw") {
-		ltCmd := LigthCmd{}
-		strs := strings.Split(devRmtPath, "/")
-		ltCmd.RoomID = strs[0]
-		ltCmd.SwitchID = strs[1]
-		if strs[2] == "sw1" {
-			ltCmd.LtCmd = &Switch1{
-				Sw1: fmt.Sprint(status),
-			}
-		} else if strs[2] == "sw2" {
-			ltCmd.LtCmd = &Switch2{
-				Sw2: fmt.Sprint(status),
-			}
-		} else if strs[2] == "sw3" {
-			ltCmd.LtCmd = &Switch3{
-				Sw3: fmt.Sprint(status),
-			}
-		}
 
-		//	ltCmd.LtCmd = []byte(fmt.Sprintf("{\"%s\":\"%d\"}", strs[2], status))
-		payload, err = json.Marshal(&ltCmd)
-		if err != nil {
-			log.Error(err)
-			return err
-		}
-		topic = []byte(fmt.Sprintf("remote/command/%s/cmd", ltCmd.RoomID))
-	} else {
-		acPro := AirconditionProperty{
-			Mode:        "0",
-			OnOff:       fmt.Sprint(status),
-			WindSpeed:   "0",
-			WindScan:    "0",
-			Temperature: "25",
-		}
+	if dev.DevTypeID == 1 || dev.DevTypeID == 3 || dev.DevTypeID == 4 || dev.DevTypeID == 5 { //设备类型是灯
 
-		acCmd := AirconditionCmd{
-			RmID: devRmtPath,
-			Cmd:  &acPro,
+		for _, status := range statuses {
+			ltCmd := LigthCmd{}
+			strs := strings.Split(dev.GetRmtDevID(), "_")
+			ltCmd.RmtCtrlID = dev.GetRmtDevID()
+			ltCmd.SwitchID = strs[0]
+			if status.Port == 1 {
+				ltCmd.LtCmd = &Switch1{
+					Sw1: fmt.Sprint(status.Status),
+				}
+			} else if status.Port == 2 {
+				ltCmd.LtCmd = &Switch2{
+					Sw2: fmt.Sprint(status.Status),
+				}
+			} else if status.Port == 3 {
+				ltCmd.LtCmd = &Switch3{
+					Sw3: fmt.Sprint(status.Status),
+				}
+			}
+
+			payload, err = json.Marshal(&ltCmd)
+			if err != nil {
+				log.Error(err)
+				return err
+			}
+			topic = []byte(fmt.Sprintf("remote/command/%s/cmd", ltCmd.RmtCtrlID))
+			pubmsg := message.NewPublishMessage()
+			pubmsg.SetTopic(topic)
+			//	pubmsg.SetPayload(make([]byte, 1024))
+			pubmsg.SetPayload(payload)
+			pubmsg.SetQoS(1)
+			err = client.Publish(pubmsg, nil)
+			if err != nil {
+				log.Error(err)
+				return err
+			}
 		}
-		topic = []byte(fmt.Sprintf("remote/command/%s/cmd", acCmd.RmID))
-		payload, err = json.Marshal(&acCmd)
+	} else if dev.DevTypeID == 2 {
+		for _, status := range statuses {
+			acPro := AirconditionProperty{
+				Mode:        "0",
+				OnOff:       fmt.Sprint(status.Status),
+				WindSpeed:   "0",
+				WindScan:    "0",
+				Temperature: "25",
+			}
+
+			acCmd := AirconditionCmd{
+				RmtCtrlID: dev.GetRmtDevID(),
+				Cmd:       &acPro,
+			}
+			topic = []byte(fmt.Sprintf("remote/command/%s/cmd", acCmd.RmtCtrlID))
+			payload, err = json.Marshal(&acCmd)
+			pubmsg := message.NewPublishMessage()
+			pubmsg.SetTopic(topic)
+			//	pubmsg.SetPayload(make([]byte, 1024))
+			pubmsg.SetPayload(payload)
+			pubmsg.SetQoS(1)
+			err = client.Publish(pubmsg, nil)
+			if err != nil {
+				log.Error(err)
+				return err
+			}
+		}
 	}
-	log.Debug("topic:", topic)
-	log.Debug("payload:", string(payload))
-	pubmsg := message.NewPublishMessage()
-	pubmsg.SetTopic(topic)
-	//	pubmsg.SetPayload(make([]byte, 1024))
-	pubmsg.SetPayload(payload)
-	pubmsg.SetQoS(1)
-	err = client.Publish(pubmsg, nil)
-	if err != nil {
-		log.Error(err)
-		return err
-	}
+	//	log.Debug("topic:", topic)
+	//	log.Debug("payload:", string(payload))
+
 	return nil
 }

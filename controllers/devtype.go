@@ -110,7 +110,7 @@ func (this *DevTypeController) Delete() {
 		outputBadReq(this.Ctx.Output, err)
 		return
 	}
-	devtypeid, err := strconv.ParseUint(this.Ctx.Input.Param("devtypeid"), 0, 64)
+	devtypeid, err := strconv.ParseUint(this.Ctx.Input.Param(":devtypeid"), 0, 64)
 	if err != nil {
 		log.Error(err)
 		outputInternalError(this.Ctx.Output, err)

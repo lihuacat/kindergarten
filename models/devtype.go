@@ -35,6 +35,7 @@ func (this *DevTypeAddReq) Check() error {
 type DevType struct {
 	DevTypeID   int64
 	DevTypeName string
+	PortNum     int //端口数量，一个端口控制一个电器（灯/空调）
 }
 
 func InsertDevType(devType *DevType) (int64, error) {
@@ -131,5 +132,3 @@ func GetDevTypes() ([]*DevType, error) {
 
 	return devTypes, nil
 }
-
-
