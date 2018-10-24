@@ -60,6 +60,10 @@ func (this *Device) SetRmtDevID(id string) {
 	this.rmtDevID = id
 }
 
+func (this *Device) GetRmtCtrlID() string {
+	return this.rmtCtrlID
+}
+
 func InsertDev(dev *Device) (int64, error) {
 
 	if dev.DevTypeID == 1 { //如果是灯
@@ -94,9 +98,10 @@ func InsertDev(dev *Device) (int64, error) {
 
 	dev.DevID = id
 	var num int
-	row = tx.QueryRow(`select ctrl_num from devicetype where typeid=$1`)
+	row = tx.QueryRow(`select ctrl_num from devicetype where typeid=$1`, dev.DevTypeID)
 	err = row.Scan(&num)
 	if err != nil {
+		tx.Rollback()
 		log.Error(err)
 		return 0, err
 	}
@@ -168,8 +173,8 @@ func GetDevByID(id int64) (*Device, error) {
 		status int
 	)
 	log.Debug("id", id)
-	row := db.QueryRow(`select d.devid,d.devtypeid, d.devname, d.blockid, b.blockname, d.status, d.lasttime, b.rmtctrlid, d.rmtdevid, dt.ctrl_num from device d left join devicetype dt on dt.typeid=d.devtypeid left join block b on b.blockid=d.blockid where d.devid=$1;`, &id)
-	err := row.Scan(&dev.DevID, &dev.DevTypeID, &dev.DevName, &dev.BlockID, &dev.BlockName, &dev.Status, &dev.lastTime, &dev.rmtCtrlID, &dev.rmtDevID, &dev.CtrlNum)
+	row := db.QueryRow(`select d.devid,d.devtypeid, d.devname, d.blockid, b.blockname, d.lasttime, b.rmtctrlid, d.rmtdevid, dt.ctrl_num from device d left join devicetype dt on dt.typeid=d.devtypeid left join block b on b.blockid=d.blockid where d.devid=$1;`, &id)
+	err := row.Scan(&dev.DevID, &dev.DevTypeID, &dev.DevName, &dev.BlockID, &dev.BlockName, &dev.lastTime, &dev.rmtCtrlID, &dev.rmtDevID, &dev.CtrlNum)
 	if err != nil {
 		log.Error(err)
 		if err == sql.ErrNoRows {
@@ -198,6 +203,9 @@ func GetDevByID(id int64) (*Device, error) {
 			log.Error(err)
 			return nil, err
 		}
+		if (dev.DevTypeID == 4 && sta.Port == 2) || (dev.DevTypeID == 3 && (sta.Port == 1 || sta.Port == 3)) {
+			continue
+		}
 		if status == -2 {
 			sta.Status = status
 		}
@@ -219,9 +227,9 @@ func GetDevsByKgID(kgid int64, status int) ([]*Device, error) {
 		stat int
 	)
 	if status == 0 {
-		rows, err = db.Query(`select device.devtypeid, device.devid, device.devname, device.blockid,block.blockname,device.status,device.lasttime,dt.ctrl_num from device left join devicetype dt on dt.typeid = device.devtypeid left join block on device.blockid=block.blockid where block.kgid=$1 order by device.devname;`, &kgid)
+		rows, err = db.Query(`select device.devtypeid, device.devid, device.devname, device.blockid,block.blockname,device.lasttime,dt.ctrl_num from device left join devicetype dt on dt.typeid = device.devtypeid left join block on device.blockid=block.blockid where block.kgid=$1 order by device.devtypeid,device.devname;`, &kgid)
 	} else {
-		rows, err = db.Query(`select device.devtypeid, device.devid, device.devname, device.blockid,block.blockname,device.status,device.lasttime,dt.ctrl_num from device left join devicetype dt on dt.typeid = device.devtypeid left join block on device.blockid=block.blockid where block.kgid=$1 and device.status=$2 order by device.devname;`, &kgid, &status)
+		rows, err = db.Query(`select device.devtypeid, device.devid, device.devname, device.blockid,block.blockname,device.lasttime,dt.ctrl_num from (select distinct devid from devstatus where status=$2) ds left join device on ds.devid=device.devid left join devicetype dt on dt.typeid = device.devtypeid left join block on device.blockid=block.blockid where block.kgid=$1 order by device.devtypeid,device.devname;`, &kgid, &status)
 	}
 	if err != nil {
 		log.Error(err)
@@ -230,7 +238,7 @@ func GetDevsByKgID(kgid int64, status int) ([]*Device, error) {
 	devs := make([]*Device, 0)
 	for rows.Next() {
 		dev := Device{}
-		err = rows.Scan(&dev.DevTypeID, &dev.DevID, &dev.DevName, &dev.BlockID, &dev.BlockName, &dev.Status, &dev.lastTime, &dev.CtrlNum)
+		err = rows.Scan(&dev.DevTypeID, &dev.DevID, &dev.DevName, &dev.BlockID, &dev.BlockName, &dev.lastTime, &dev.CtrlNum)
 		if err != nil {
 			log.Error(err)
 			return nil, err
@@ -238,8 +246,12 @@ func GetDevsByKgID(kgid int64, status int) ([]*Device, error) {
 		if time.Now().Sub(dev.lastTime).Seconds() > 70 {
 			stat = -2
 		}
-
-		statusRows, err := db.Query(`select port,status from devstatus where devid = $1`, &dev.DevID)
+		var statusRows *sql.Rows
+		if status == 0 {
+			statusRows, err = db.Query(`select port,status from devstatus where devid = $1`, dev.DevID)
+		} else {
+			statusRows, err = db.Query(`select port,status from devstatus where devid = $1 and status=$2`, dev.DevID, status)
+		}
 		if err != nil {
 			log.Error(err)
 			if err == sql.ErrNoRows {
@@ -254,6 +266,9 @@ func GetDevsByKgID(kgid int64, status int) ([]*Device, error) {
 			if err != nil {
 				log.Error(err)
 				return nil, err
+			}
+			if (dev.DevTypeID == 4 && sta.Port == 2) || (dev.DevTypeID == 3 && (sta.Port == 1 || sta.Port == 3)) {
+				continue
 			}
 			if status == -2 {
 				sta.Status = stat
@@ -273,7 +288,7 @@ func GetDevsByBlkID(blkID int64, status int) ([]*Device, error) {
 		rows *sql.Rows
 	)
 
-	rows, err = db.Query(`select d.devid, d.devname, d.devtypeid, d.blockid,b.blockname,d.status,d.lasttime, dt.ctrl_num  from device d left join devicetype dt on dt.typeid = d.devtypeid left join block b on d.blockid=b.blockid where d.blockid =$1 ;`, &blkID)
+	rows, err = db.Query(`select d.devid, d.devname, d.devtypeid, d.blockid,b.blockname,d.lasttime, dt.ctrl_num, d.rmtdevid from device d left join devicetype dt on dt.typeid = d.devtypeid left join block b on d.blockid=b.blockid where d.blockid =$1 order by d.devtypeid,d.devname;`, &blkID)
 
 	if err != nil {
 		log.Error(err)
@@ -282,11 +297,13 @@ func GetDevsByBlkID(blkID int64, status int) ([]*Device, error) {
 	devs := make([]*Device, 0)
 	for rows.Next() {
 		dev := Device{}
-		err = rows.Scan(&dev.DevID, &dev.DevName, &dev.DevTypeID, &dev.BlockID, &dev.BlockName, &dev.Status, &dev.lastTime, &dev.CtrlNum)
+		var rmtDevID string
+		err = rows.Scan(&dev.DevID, &dev.DevName, &dev.DevTypeID, &dev.BlockID, &dev.BlockName, &dev.lastTime, &dev.CtrlNum, &rmtDevID)
 		if err != nil {
 			log.Error(err)
 			return nil, err
 		}
+		dev.SetRmtDevID(rmtDevID)
 		//		if time.Now().Sub(dev.lastTime).Seconds() > 70 {
 		//			dev.Status = -2
 		//		}
@@ -311,9 +328,12 @@ func GetDevsByBlkID(blkID int64, status int) ([]*Device, error) {
 				log.Error(err)
 				return nil, err
 			}
-			//			if status == -2 {
-			//				sta.Status = status
-			//			}
+			if (dev.DevTypeID == 4 && sta.Port == 2) || (dev.DevTypeID == 3 && (sta.Port == 1 || sta.Port == 3)) {
+				continue
+			}
+			if status == -2 {
+				sta.Status = status
+			}
 			dev.Status = append(dev.Status, &sta)
 		}
 
@@ -410,7 +430,7 @@ func SetDevStatusbyRmtDevID(rmtdevid string, status int) error {
 
 func SetDevStatusbyDevIDPort(devid int64, port, status int) error {
 
-	ret, err := db.Exec(`update devstatus set status = $1  where devid = $2;`, &status, &devid, &port)
+	ret, err := db.Exec(`update devstatus set status = $1  where devid = $2 and port=$3;`, status, devid, port)
 	if err != nil {
 		log.Error(err)
 		if err == sql.ErrNoRows {
@@ -463,8 +483,8 @@ func GetDevNumByBlockID(blockid int64, devtype int64) (int, error) {
 
 func GetDevByBlockIDDevType(blockid int64, devtype int64) (*Device, error) {
 	var dev Device
-	row := db.QueryRow(`select d.devid,d.devtypeid, d.devname, d.blockid,b.blockname, d.status, b.rmtctrlid, d.rmtdevid,d.lasttime,dt.ctrl_num from device d left join devicetype dt on dt.typeid=d.devtypeid left join block b on b.blockid=d.blockid where b.blockid=$1 and d.devtypeid=$2;`, &blockid, &devtype)
-	err := row.Scan(&dev.DevID, &dev.DevTypeID, &dev.DevName, &dev.BlockID, &dev.BlockName, &dev.Status, &dev.rmtCtrlID, &dev.rmtDevID, &dev.lastTime, &dev.CtrlNum)
+	row := db.QueryRow(`select d.devid,d.devtypeid, d.devname, d.blockid,b.blockname, b.rmtctrlid, d.rmtdevid,d.lasttime,dt.ctrl_num from device d left join devicetype dt on dt.typeid=d.devtypeid left join block b on b.blockid=d.blockid where b.blockid=$1 and d.devtypeid=$2 order by d.devtypeid,d.devname;`, &blockid, &devtype)
+	err := row.Scan(&dev.DevID, &dev.DevTypeID, &dev.DevName, &dev.BlockID, &dev.BlockName, &dev.rmtCtrlID, &dev.rmtDevID, &dev.lastTime, &dev.CtrlNum)
 	if err != nil {
 		log.Error(err)
 		if err == sql.ErrNoRows {
@@ -492,6 +512,9 @@ func GetDevByBlockIDDevType(blockid int64, devtype int64) (*Device, error) {
 		if err != nil {
 			log.Error(err)
 			return nil, err
+		}
+		if (dev.DevTypeID == 4 && sta.Port == 2) || (dev.DevTypeID == 3 && (sta.Port == 1 || sta.Port == 3)) {
+			continue
 		}
 		if status == -2 {
 			sta.Status = status
@@ -539,3 +562,30 @@ func GetDevByRmtID(rmtID string) (*Device, error) {
 
 	return &dev, nil
 }
+
+/*
+func GetStatusbyDevID(devid int64) []DevStatus {
+	st := make([]*DevStatus, 0)
+
+	statusRows, err := db.Query(`select port,status from devstatus where devid = $1`, &dev.DevID)
+	if err != nil {
+		log.Error(err)
+		if err == sql.ErrNoRows {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	for statusRows.Next() {
+		sta := DevStatus{}
+		err := statusRows.Scan(&sta.Port, &sta.Status)
+		if err != nil {
+			log.Error(err)
+			return nil, err
+		}
+		if status == -2 {
+			sta.Status = status
+		}
+		dev.Status = append(dev.Status, &sta)
+	}
+}
+*/

@@ -16,7 +16,8 @@ import (
 )
 
 var (
-	client = &service.Client{}
+	client           = &service.Client{}
+	publishAppClient = &service.Client{}
 )
 
 func keepAlive() {
@@ -34,17 +35,28 @@ func keepAlive() {
 }
 
 func StartClient() error {
+
+	appPublisherLoginMsg := message.NewConnectMessage()
+	appPublisherLoginMsg.SetVersion(4)
+	appPublisherLoginMsg.SetCleanSession(true)
+	appPublisherLoginMsg.SetClientId([]byte("appPublisher"))
+	appPublisherLoginMsg.SetKeepAlive(1000)
+	appPublisherLoginMsg.SetUsername([]byte("appPublisher"))
+	appPublisherLoginMsg.SetPassword([]byte("verysecret"))
+	err := publishAppClient.Connect("tcp://127.0.0.1:444", appPublisherLoginMsg)
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+
 	msg := message.NewConnectMessage()
-	//	msg.SetWillQos(1)
 	msg.SetVersion(4)
 	msg.SetCleanSession(true)
 	msg.SetClientId([]byte("surgemq"))
 	msg.SetKeepAlive(1000)
-	//	msg.SetWillTopic([]byte("will"))
-	//	msg.SetWillMessage([]byte("send me home"))
 	msg.SetUsername([]byte("surgemq"))
 	msg.SetPassword([]byte("verysecret"))
-	err := client.Connect("tcp://47.94.4.51:444", msg)
+	err = client.Connect("tcp://127.0.0.1:444", msg)
 	if err != nil {
 		log.Error(err)
 		return err
@@ -80,7 +92,7 @@ func StartClient() error {
 			log.Error(err)
 			return err
 		}
-		time.Sleep(100 * time.Second)
+		time.Sleep(600 * time.Second)
 		//		c.Ping(nil)
 	}
 	//	keepAlive()
@@ -104,10 +116,35 @@ func onPing(msg, ack message.Message, err error) error {
 	return nil
 }
 
+/*
+topic:  app/user/{userid}/dev/{devid}
+message:
+{
+    "DevTypeID": 1,
+    "BlockID": 20,
+    "DevName": "灯",
+    "DevID": 30,
+    "BlockName": "秋实园测试",
+    "Status": [
+        {
+            "Port": 1,
+            "Status": -1
+        }
+    ],
+    "CtrlNum": 1
+}
+*/
 func onPublish(msg *message.PublishMessage) error {
+
 	var err error
 	log.Debug(string(msg.Topic()))
 	log.Debug(string(msg.Payload()))
+
+	if string(msg.Topic()) == "hello" {
+		log.Debug(string(msg.Payload()))
+		return nil
+	}
+
 	if len(msg.Payload()) == 0 {
 		err = errors.New("payload is nil")
 		log.Error(err)
@@ -152,7 +189,7 @@ func onPublish(msg *message.PublishMessage) error {
 		}
 		status, err = strconv.Atoi(ltStatus.LtStatus.Sw3)
 		if err != nil {
-			log.Debug(ltStatus.LtStatus.Sw2)
+			log.Debug(ltStatus.LtStatus.Sw3)
 			log.Error(err)
 			return nil
 		} else {
@@ -160,6 +197,32 @@ func onPublish(msg *message.PublishMessage) error {
 				status = -1
 			}
 			models.SetDevStatusbyDevIDPort(dev.DevID, 3, status)
+		}
+
+		dev, err = models.GetDevByID(dev.DevID)
+		if err != nil {
+			log.Error(err)
+		} else {
+			users, err := models.GetUserbyBlkID(dev.BlockID)
+			if err != nil {
+				log.Error(err)
+			}
+			for _, u := range users {
+				pubmsg := message.NewPublishMessage()
+				pubmsg.SetTopic([]byte(fmt.Sprintf("app/user/%v/dev/%v", u.UserID, dev.DevID)))
+				log.Debug(fmt.Sprintf("app/user/%v/dev/%v", u.UserID, dev.DevID))
+				payload, err := json.Marshal(&dev)
+				if err != nil {
+					log.Error(err)
+				}
+				log.Debug(string(payload))
+				pubmsg.SetPayload(payload)
+				pubmsg.SetQoS(1)
+				err = publishAppClient.Publish(pubmsg, nil)
+				if err != nil {
+					log.Error(err)
+				}
+			}
 		}
 
 		block, err := models.GetBlockByRmtCtrlID(ltStatus.RoomID)
@@ -219,7 +282,30 @@ func onPublish(msg *message.PublishMessage) error {
 			log.Error(err)
 			return nil
 		}
-
+		dev, err = models.GetDevByID(dev.DevID)
+		if err != nil {
+			log.Error(err)
+		} else {
+			users, err := models.GetUserbyBlkID(dev.BlockID)
+			if err != nil {
+				log.Error(err)
+			}
+			for _, u := range users {
+				pubmsg := message.NewPublishMessage()
+				pubmsg.SetTopic([]byte(fmt.Sprintf("app/user/%v/dev/%v", u.UserID, dev.DevID)))
+				//	pubmsg.SetPayload(make([]byte, 1024))
+				payload, err := json.Marshal(&dev)
+				if err != nil {
+					log.Error(err)
+				}
+				pubmsg.SetPayload(payload)
+				pubmsg.SetQoS(1)
+				err = publishAppClient.Publish(pubmsg, nil)
+				if err != nil {
+					log.Error(err)
+				}
+			}
+		}
 		block, err := models.GetBlockByRmtCtrlID(acStatus.RmID)
 		if err != nil {
 			log.Error("kaCmd.RmtCtrlID", acStatus.RmID)
@@ -305,20 +391,24 @@ func ControlDevice(id int64, statuses []*models.DevStatus) error {
 
 		for _, status := range statuses {
 			ltCmd := LigthCmd{}
+			sta := status.Status
 			strs := strings.Split(dev.GetRmtDevID(), "_")
-			ltCmd.RmtCtrlID = dev.GetRmtDevID()
+			ltCmd.RmtCtrlID = dev.GetRmtCtrlID()
 			ltCmd.SwitchID = strs[0]
+			if sta == -1 {
+				sta = 0
+			}
 			if status.Port == 1 {
 				ltCmd.LtCmd = &Switch1{
-					Sw1: fmt.Sprint(status.Status),
+					Sw1: fmt.Sprint(sta),
 				}
 			} else if status.Port == 2 {
 				ltCmd.LtCmd = &Switch2{
-					Sw2: fmt.Sprint(status.Status),
+					Sw2: fmt.Sprint(sta),
 				}
 			} else if status.Port == 3 {
 				ltCmd.LtCmd = &Switch3{
-					Sw3: fmt.Sprint(status.Status),
+					Sw3: fmt.Sprint(sta),
 				}
 			}
 
@@ -339,18 +429,22 @@ func ControlDevice(id int64, statuses []*models.DevStatus) error {
 				return err
 			}
 		}
-	} else if dev.DevTypeID == 2 {
+	} else if dev.DevTypeID == 2 || dev.DevTypeID == 6 {
 		for _, status := range statuses {
+			sta := status.Status
+			if sta == -1 {
+				sta = 0
+			}
 			acPro := AirconditionProperty{
 				Mode:        "0",
-				OnOff:       fmt.Sprint(status.Status),
+				OnOff:       fmt.Sprint(sta),
 				WindSpeed:   "0",
 				WindScan:    "0",
 				Temperature: "25",
 			}
 
 			acCmd := AirconditionCmd{
-				RmtCtrlID: dev.GetRmtDevID(),
+				RmtCtrlID: dev.GetRmtCtrlID(),
 				Cmd:       &acPro,
 			}
 			topic = []byte(fmt.Sprintf("remote/command/%s/cmd", acCmd.RmtCtrlID))
@@ -367,8 +461,10 @@ func ControlDevice(id int64, statuses []*models.DevStatus) error {
 			}
 		}
 	}
-	//	log.Debug("topic:", topic)
-	//	log.Debug("payload:", string(payload))
 
 	return nil
+}
+
+func init() {
+	models.RunDevTimer(ControlDevice)
 }

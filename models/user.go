@@ -115,7 +115,7 @@ type User struct {
 }
 
 func UpdateUser(user *User) error {
-	_, err := db.Exec(`update users set username = $1, cellnum = $2 where userid = $3;`, &user.UserName, &user.CellNum, &user.UserID)
+	_, err := db.Exec(`update users set username = $1, cellnum = $2 where user_id = $3;`, &user.UserName, &user.CellNum, &user.UserID)
 	if err != nil {
 		log.Error(err)
 		return err
@@ -125,7 +125,7 @@ func UpdateUser(user *User) error {
 }
 
 func UpdateUserPasswd(user *User) error {
-	_, err := db.Exec(`update users set passwd = $1 where userid = $2;`, &user.Passwd, &user.UserID)
+	_, err := db.Exec(`update users set passwd = $1 where user_id = $2;`, &user.Passwd, &user.UserID)
 	if err != nil {
 		log.Error(err)
 		return err
@@ -136,7 +136,7 @@ func UpdateUserPasswd(user *User) error {
 
 func GetUserByID(id int64) (*User, error) {
 	user := User{}
-	row := db.QueryRow("select userid,username,passwd,cellnum from users where userid = $1 ", id)
+	row := db.QueryRow("select user_id,username,passwd,cellnum from users where user_id = $1 ", id)
 	err := row.Scan(&user.UserID, &user.UserName, &user.Passwd, &user.CellNum)
 	if err != nil {
 		log.Error(err)
@@ -151,7 +151,7 @@ func GetUserByID(id int64) (*User, error) {
 
 func GetUserByCellNum(cellNum string) (*User, error) {
 	user := User{}
-	row := db.QueryRow("select userid,username,passwd,cellnum from users where cellnum = $1 ", cellNum)
+	row := db.QueryRow("select user_id,username,passwd,cellnum from users where cellnum = $1 ", cellNum)
 	err := row.Scan(&user.UserID, &user.UserName, &user.Passwd, &user.CellNum)
 	if err != nil {
 		log.Error(err)
@@ -172,11 +172,32 @@ func InsertUser(user *User) (int64, error) {
 		log.Error(err)
 		return 0, err
 	}
-	_, err = db.Exec(`insert into users( username,"passwd",userid,cellnum ) values($1,$2,$3,$4);`, &user.UserName, &user.Passwd, &id, &user.CellNum)
+	_, err = db.Exec(`insert into users( username,"passwd",user_id,cellnum ) values($1,$2,$3,$4);`, &user.UserName, &user.Passwd, &id, &user.CellNum)
 	if err != nil {
 		log.Error(err)
 		return 0, err
 	}
 
 	return id, nil
+}
+
+func GetUserbyBlkID(blockID int64) ([]*User, error) {
+
+	rows, err := db.Query(`select users.user_id, users.username from users left join block_user  on users.user_id=block_user.user_id where block_user.blockid =$1 ;`, &blockID)
+	if err != nil {
+		log.Error(err)
+		return nil, err
+	}
+	users := make([]*User, 0)
+	for rows.Next() {
+		user := User{}
+		err = rows.Scan(&user.UserID, &user.UserName)
+		if err != nil {
+			log.Error(err)
+			return nil, err
+		}
+		users = append(users, &user)
+	}
+
+	return users, nil
 }

@@ -24,11 +24,9 @@ func init() {
 		beego.NSNamespace("/device", beego.NSInclude(&controllers.DeviceController{})),
 		beego.NSNamespace("/blockuser", beego.NSInclude(&controllers.BlockUserController{})),
 		beego.NSNamespace("/rmtsuite", beego.NSInclude(&controllers.RmtSuiteController{})),
+		beego.NSNamespace("/devtimer", beego.NSInclude(&controllers.DevTimerController{})),
+		beego.NSNamespace("/region", beego.NSInclude(&controllers.RegionController{})),
 	)
 	beego.AddNamespace(kgns)
-	//	beego.Router("/kindergarten/session", &controllers.SessionController{})
-	//	beego.Router("/kindergarten/user", &controllers.UserController{})
-	//	beego.Router("/kindergarten/device", &controllers.DeviceController{})
-	//	beego.Router("/kindergarten/kg", &controllers.KgController{})
-	//	beego.Router("/kindergarten/devtimer", &controllers.DevTimerController{})
+
 }

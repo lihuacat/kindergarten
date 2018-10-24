@@ -114,7 +114,7 @@ type DevTypesRes struct {
 }
 
 func GetDevTypes() ([]*DevType, error) {
-	rows, err := db.Query(`select typeid,typename from devicetype ;`)
+	rows, err := db.Query(`select typeid,typename, ctrl_num from devicetype ;`)
 	if err != nil {
 		log.Error(err)
 		return nil, err
@@ -122,7 +122,7 @@ func GetDevTypes() ([]*DevType, error) {
 	devTypes := make([]*DevType, 0)
 	for rows.Next() {
 		devType := DevType{}
-		err = rows.Scan(&devType.DevTypeID, &devType.DevTypeName)
+		err = rows.Scan(&devType.DevTypeID, &devType.DevTypeName, &devType.PortNum)
 		if err != nil {
 			log.Error(err)
 			return nil, err

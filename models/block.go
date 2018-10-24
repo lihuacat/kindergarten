@@ -7,6 +7,11 @@ import (
 	log "github.com/astaxie/beego/logs"
 )
 
+type BlocksRes struct {
+	Num    int
+	Blocks []*Block
+}
+
 type BlockDelReq struct {
 	BlockID int64
 }
@@ -102,13 +107,8 @@ func GetBlockByID(id int64) (*Block, error) {
 	return &block, nil
 }
 
-type BlocksRes struct {
-	Num    int
-	Blocks []*Block
-}
-
 func GetBlocksByKgID(kgID int64) ([]*Block, error) {
-	rows, err := db.Query(`select blockid,blockname,kgid from block where kgid =$1 ;`, &kgID)
+	rows, err := db.Query(`select blockid,blockname,kgid from block where kgid =$1 order by blockname;`, &kgID)
 	if err != nil {
 		log.Error(err)
 		return nil, err
@@ -140,4 +140,24 @@ func GetBlockByRmtCtrlID(rmtctrlid string) (*Block, error) {
 	}
 
 	return &block, nil
+}
+
+func GetBlocksByRegionID(regionID int64) ([]*Block, error) {
+	rows, err := db.Query(`select blockid,blockname,kgid from block where kgid =$1 order by blockname;`, &regionID)
+	if err != nil {
+		log.Error(err)
+		return nil, err
+	}
+	blocks := make([]*Block, 0)
+	for rows.Next() {
+		block := Block{}
+		err = rows.Scan(&block.BlockID, &block.BlockName, &block.KgID)
+		if err != nil {
+			log.Error(err)
+			return nil, err
+		}
+		blocks = append(blocks, &block)
+	}
+
+	return blocks, nil
 }

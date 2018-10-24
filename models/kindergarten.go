@@ -146,7 +146,7 @@ func DelKg(id int64) error {
 
 func GetKgsByUserID(userID int64) ([]*Kindergarten, error) {
 
-	rows, err := db.Query(`select kg.kgid,kg.kgname from block_user bu left join block b on bu.blockid=b.blockid left join kindergarten kg on kg.kgid=b.kgid where bu.userid=$1 group by kg.kgid,kg.kgname;`, &userID)
+	rows, err := db.Query(`select kg.kgid,kg.kgname from block_user bu left join block b on bu.blockid=b.blockid left join kindergarten kg on kg.kgid=b.kgid where bu.user_id=$1 group by kg.kgid,kg.kgname;`, &userID)
 	if err != nil {
 		log.Error(err)
 		return nil, err
