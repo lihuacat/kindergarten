@@ -504,7 +504,7 @@
                     "200": {
                         "description": "",
                         "schema": {
-                            "$ref": "#/definitions/.KgRes"
+                            "$ref": "#/definitions/models.KgRes"
                         }
                     },
                     "409": {
@@ -864,6 +864,51 @@
                 }
             }
         },
+        "/transmit/": {
+            "post": {
+                "tags": [
+                    "transmit"
+                ],
+                "description": "给设备转发命令",
+                "operationId": "TransmitController.给设备转发命令",
+                "parameters": [
+                    {
+                        "in": "header",
+                        "name": "token",
+                        "description": "会话token",
+                        "required": true,
+                        "type": "string"
+                    },
+                    {
+                        "in": "header",
+                        "name": "userid",
+                        "description": "会话userid",
+                        "required": true,
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    {
+                        "in": "body",
+                        "name": "body",
+                        "description": "true",
+                        "schema": {
+                            "$ref": "#/definitions/mqtt.TransmitContent"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/models.Devices"
+                        }
+                    },
+                    "500": {
+                        "description": "内部错误"
+                    }
+                }
+            }
+        },
         "/user/": {
             "put": {
                 "tags": [
@@ -1057,9 +1102,6 @@
         }
     },
     "definitions": {
-        ".KgRes": {
-            "type": "object"
-        },
         "models.Block": {
             "title": "Block",
             "type": "object",
@@ -1277,6 +1319,10 @@
                 }
             }
         },
+        "models.KgRes": {
+            "title": "KgRes",
+            "type": "object"
+        },
         "models.KgsRes": {
             "title": "KgsRes",
             "type": "object",
@@ -1375,7 +1421,7 @@
             }
         },
         "models.RegReq": {
-            "title": "LoginReq",
+            "title": "RegReq",
             "type": "object",
             "properties": {
                 "CellNum": {
@@ -1390,7 +1436,7 @@
             }
         },
         "models.RegRes": {
-            "title": "LoginRes",
+            "title": "RegRes",
             "type": "object",
             "properties": {
                 "CellNum": {
@@ -1405,6 +1451,19 @@
                 },
                 "UserName": {
                     "type": "string"
+                }
+            }
+        },
+        "mqtt.TransmitContent": {
+            "title": "TransmitContent",
+            "type": "object",
+            "properties": {
+                "Content": {
+                    "type": "string"
+                },
+                "DevID": {
+                    "type": "integer",
+                    "format": "int64"
                 }
             }
         }

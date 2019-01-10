@@ -292,3 +292,39 @@ func ControlDevice(id int64, status int) error {
 	}
 	return nil
 }
+
+type TransmitContent struct {
+	DevID   int64
+	Content string
+}
+
+func Transmit(id int64, content string) error {
+
+	var topic []byte
+
+	devRmtPath, err := models.GetDevPathbyID(id)
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+	if strings.Contains(devRmtPath, "sw") {
+		strs := strings.Split(devRmtPath, "/")
+		topic = []byte(fmt.Sprintf("remote/command/%s/cmd", strs))
+	} else {
+
+		topic = []byte(fmt.Sprintf("remote/command/%s/cmd", devRmtPath))
+	}
+	log.Debug("topic:", topic)
+	log.Debug("payload:", content)
+	pubmsg := message.NewPublishMessage()
+	pubmsg.SetTopic(topic)
+
+	pubmsg.SetPayload([]byte(content))
+	pubmsg.SetQoS(1)
+	err = client.Publish(pubmsg, nil)
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+	return nil
+}
