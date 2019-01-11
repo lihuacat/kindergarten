@@ -23,7 +23,7 @@ func (this *BlockUser) Check() error {
 }
 
 func InserBlockUser(bu *BlockUser) error {
-	_, err := db.Exec(`insert into block_user(blockid, Userid) values($1,$2);`, &bu.BlockID, &bu.UserID)
+	_, err := db.Exec(`insert into block_user(blockid, user_id) values($1,$2);`, &bu.BlockID, &bu.UserID)
 	if err != nil {
 		log.Error(err)
 		return err

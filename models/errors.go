@@ -7,7 +7,8 @@ import (
 var (
 	ErrNotFound = errors.New("resource not found")
 
-	ErrNameNil      = errors.New("user name is nil")
+	ErrIDNil        = errors.New("ID is nil")
+	ErrNameNil      = errors.New("name is nil")
 	ErrUserIDNil    = errors.New("user ID is nil")
 	ErrKgIDNil      = errors.New("kindergarten ID is nil")
 	ErrBlockIDNil   = errors.New("block ID is nil")

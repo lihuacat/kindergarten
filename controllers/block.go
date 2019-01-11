@@ -8,7 +8,6 @@ import (
 	"strconv"
 
 	"github.com/astaxie/beego"
-	//	"github.com/astaxie/beego/context"
 	log "github.com/astaxie/beego/logs"
 )
 
@@ -58,6 +57,7 @@ func (this *BlockController) Add() {
 	newBlock := models.Block{}
 	newBlock.BlockName = req.BlockName
 	newBlock.KgID = req.KgID
+	newBlock.RmtCtrlID = req.RmtCtrlID
 	id, err := models.InsertBlock(&newBlock)
 	if err != nil {
 		log.Error(err)
@@ -85,7 +85,7 @@ func (this *BlockController) Delete() {
 		outputBadReq(this.Ctx.Output, err)
 		return
 	}
-	blockid, err := strconv.ParseUint(this.Ctx.Input.Param("blockid"), 0, 64)
+	blockid, err := strconv.ParseUint(this.Ctx.Input.Param(":blockid"), 0, 64)
 	if err != nil {
 		log.Error(err)
 		outputBadReq(this.Ctx.Output, err)
@@ -106,8 +106,8 @@ func (this *BlockController) Delete() {
 	return
 }
 
-// @Title 查询的所有设备
-// @Description 查询区域的所有区域
+// @Title 查询区域的所有设备
+// @Description 查询区域的所有设备
 // @Success 200 {object} models.DevsRes
 // @Param   token header     string    true       "会话token"
 // @Param   userid header     int    true       "会话userid"
@@ -161,5 +161,26 @@ func (this *BlockController) BlockDevices() {
 		Devices: ds,
 	}
 	this.Ctx.Output.JSON(&res, false, false)
+	return
+}
+
+// @Title 以遥控器ID为条件查询区域信息
+// @Description 以遥控器ID为条件查询区域信息
+// @Success 200 {object} models.Block
+// @Param   rmtctrlid path     string    true       "遥控器ID"
+// @Failure 404 区域不存在
+// @Failure 500 内部错误
+// @router /rmtctrlid/:rmtctrlid [get]
+func (this *BlockController) GetBlockbyRmtctrlid() {
+
+	rmtctrlid := this.Ctx.Input.Param(":rmtctrlid")
+
+	block, err := models.GetBlockByRmtCtrlID(rmtctrlid)
+	if err != nil {
+		log.Error(err)
+		outputInternalError(this.Ctx.Output, err)
+		return
+	}
+	this.Ctx.Output.JSON(&block, false, false)
 	return
 }

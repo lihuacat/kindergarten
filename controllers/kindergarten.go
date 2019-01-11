@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"kindergarten/models"
+	"kindergarten/mqtt"
 	"net/http"
 	"strconv"
 
@@ -289,7 +290,7 @@ func (this *KgController) Delete() {
 		return
 	}
 
-	kgid, err := strconv.ParseUint(this.Ctx.Input.Param("kgid"), 0, 64)
+	kgid, err := strconv.ParseUint(this.Ctx.Input.Param(":kgid"), 0, 64)
 	if err != nil {
 		log.Error(err)
 		outputBadReq(this.Ctx.Output, err)
@@ -342,5 +343,81 @@ func (this *KgController) All() {
 		Kgs: kgs,
 	}
 	this.Ctx.Output.JSON(&kgsRes, false, false)
+	return
+}
+
+// @Title 关闭园区的所有设备
+// @Description 关闭园区的所有设备
+// @Success 200 {object} models.DevsRes
+// @Param   token header     string    true       "会话token"
+// @Param   userid header     int    true       "会话userid"
+// @Param   kgid path     int    true       "园区ID"
+// @Failure 500 内部错误
+// @router /:kgid/closeall [post]
+func (this *KgController) CloseAll() {
+	err := checkUserToken(this.Ctx.Input)
+	if err != nil {
+		log.Error(err)
+		outputBadReq(this.Ctx.Output, err)
+		return
+	}
+
+	kgid, err := strconv.ParseUint(this.Ctx.Input.Param(":kgid"), 0, 64)
+	if err != nil {
+		log.Error(err)
+		outputBadReq(this.Ctx.Output, err)
+		return
+	}
+
+	devs, err := models.GetDevsByKgID(int64(kgid), 1)
+	if err != nil {
+		outputInternalError(this.Ctx.Output, err)
+		return
+	}
+
+	for _, dev := range devs {
+		for _, st := range dev.Status {
+			st.Status = -1
+		}
+		mqtt.ControlDevice(dev.DevID, dev.Status)
+	}
+
+	return
+}
+
+// @Title 获取园区所有region
+// @Description 获取园区所有region
+// @Success 200 {object} models.RegionsRes
+// @Param   token header     string    true       "会话token"
+// @Param   userid header     int    true       "会话userid"
+// @Param   kgid path     int    true       "园区ID"
+// @Failure 500 内部错误
+// @router /:kgid/regions [get]
+func (this *KgController) GetAllRegion() {
+	err := checkUserToken(this.Ctx.Input)
+	if err != nil {
+		log.Error(err)
+		outputBadReq(this.Ctx.Output, err)
+		return
+	}
+
+	kgid, err := strconv.ParseInt(this.Ctx.Input.Param(":kgid"), 0, 64)
+	if err != nil {
+		log.Error(err)
+		outputBadReq(this.Ctx.Output, err)
+		return
+	}
+
+	regions, err := models.GetRegionbyKgID(kgid)
+	if err != nil {
+		log.Error(err)
+		outputBadReq(this.Ctx.Output, err)
+		return
+	}
+	res := &models.RegionsRes{}
+	res.Num = len(regions)
+	res.Regions = regions
+
+	this.Ctx.Output.JSON(&res, false, false)
 	return
 }

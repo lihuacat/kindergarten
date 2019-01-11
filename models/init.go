@@ -31,5 +31,5 @@ func init() {
 		log.Error("Open DB error:", err)
 		return
 	}
-
+	initDevTimer()
 }
