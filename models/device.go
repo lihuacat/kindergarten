@@ -455,7 +455,7 @@ func SetDevStatusbyDevIDPort(devid int64, port, status int) error {
 func GetDevPathbyID(id int64) (string, error) {
 	var path string
 	log.Debug("id", id)
-	row := db.QueryRow(`select rmtpath from device where devid=$1;`, &id)
+	row := db.QueryRow(`select rmtdevid from device where devid=$1;`, &id)
 	err := row.Scan(&path)
 	if err != nil {
 		log.Error(err)
