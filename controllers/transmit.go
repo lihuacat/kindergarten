@@ -36,8 +36,11 @@ func (this *TransmitController) Relay() {
 		outputInternalError(this.Ctx.Output, err)
 		return
 	}
-
-	mqtt.Transmit(req.DevID, req.Content)
+	log.Debug(string(this.Ctx.Input.RequestBody))
+	log.Debug("req.BlockID:",req.BlockID)
+	log.Debug("req.Content:",req.Content)
+	mqtt.Transmit(req.BlockID, req.Content)
 
 	return
+
 }

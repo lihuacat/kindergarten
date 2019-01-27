@@ -161,3 +161,18 @@ func GetBlocksByRegionID(regionID int64) ([]*Block, error) {
 
 	return blocks, nil
 }
+
+func GetBlockByRmtctrlID(RmtctrlID string) (*Block, error) {
+	var block Block
+	row := db.QueryRow(`select blockid,blockname,kgid from block where rmtctrlid =$1 order by blockname;`, &RmtctrlID)
+	err := row.Scan(&block.BlockID, &block.BlockName, &block.KgID, &block.RmtCtrlID)
+	if err != nil {
+		log.Error(err)
+		if err == sql.ErrNoRows {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+
+	return &block, nil
+}

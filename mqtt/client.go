@@ -470,7 +470,7 @@ func init() {
 }
 
 type TransmitContent struct {
-	DevID   int64
+	BlockID   int64
 	Content string
 }
 
@@ -478,19 +478,15 @@ func Transmit(id int64, content string) error {
 
 	var topic []byte
 
-	devRmtPath, err := models.GetDevPathbyID(id)
+	block, err := models.GetBlockByID(id)
 	if err != nil {
 		log.Error(err)
 		return err
 	}
-	if strings.Contains(devRmtPath, "sw") {
-		strs := strings.Split(devRmtPath, "/")
-		topic = []byte(fmt.Sprintf("remote/command/%s/cmd", strs))
-	} else {
-
-		topic = []byte(fmt.Sprintf("remote/command/%s/cmd", devRmtPath))
-	}
-	log.Debug("topic:", topic)
+	
+	topic = []byte(fmt.Sprintf("remote/command/%s/cmd", block.RmtCtrlID))
+	
+	log.Debug("topic:", fmt.Sprintf("remote/command/%s/cmd", block.RmtCtrlID))
 	log.Debug("payload:", content)
 	pubmsg := message.NewPublishMessage()
 	pubmsg.SetTopic(topic)
